@@ -9,6 +9,8 @@ venv/
 
 # Environment variables
 .env/
+.env
+user_config.json
 
 # Notes and local docs
 notes/

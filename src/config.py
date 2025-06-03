@@ -3,14 +3,16 @@
 
 MODE = "local"  # or "remote" # Run locally or remotely
 
+MODELS_DIR = None # Will be set at runtime by setup() funciton in main.py
+
 # WIP @ToDo
 # Dictionary of available local models
 # Key -> model name
-# Val -> model path
+# Val -> model path (relative to MODELS_DIR) name only
 LOCAL_MODELS = {
     "testLocal": "",
-    "tinyllama": "./models/tinyllama-1.1b-chat.q4_0.gguf",
-    "phi2": "./models/phi-2.q4_0.gguf"
+    "tinyllama": "tinyllama-1.1b-chat.q4_0.gguf",
+    "phi2": "phi-2.q4_0.gguf"
 }
 
 # WIP @ToDo
