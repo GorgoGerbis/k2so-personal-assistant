@@ -6,7 +6,8 @@ import json
 
 # MUST LOAD ENV VARS FIRST
 from dotenv import load_dotenv
-load_dotenv()  # make sure this is called!
+# make sure this is called!
+load_dotenv()  # required for reading API keys and config from .env
 
 # Project Modules
 import config
