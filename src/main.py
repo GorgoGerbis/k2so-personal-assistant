@@ -4,11 +4,16 @@ import sys
 import os
 import json 
 
+# MUST LOAD ENV VARS FIRST
+from dotenv import load_dotenv
+load_dotenv()  # make sure this is called!
+
 # Project Modules
 import config
 from router import get_backend
+from components.text_to_speech import tts
 
-# 
+# User config file
 CONFIG_PATH = os.path.join(os.getcwd(), "user_config.json") # remembers users choice for future runs so setup is not repeated every time
 
 # FIRST
@@ -117,9 +122,12 @@ def run_chat_session(model_backend_obj):
             
             # Send message to model
             response = chat_session.send_message(user_input)
+            
 
             # Print response
             print(f"\nAssistant: {response}")
+            if config.TTS_ENABLED: # TODO: Add command line arg for user text to speech...
+                tts.speak(response)
 
             # TODO: Add voice output later
             # TODO: Add chat history later

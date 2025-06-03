@@ -7,6 +7,8 @@ from components.local_model import LocalModel
 from components.remote_model import RemoteModel
 
 # Switchboard that decides which backend to use
+# local: Instantiates LocalModelBackend with the correct model path
+# remote: Instantiates RemoteModelBackend with the correct endpoint
 def get_backend(selected_mode, selected_model):
     # Returns the model backend object
     if selected_mode == "local":
@@ -14,7 +16,7 @@ def get_backend(selected_mode, selected_model):
         print("Model path: ", model_path)
         return LocalModel(model_path)
     elif selected_mode == "remote":
-        endpoint = config.REMOTE_MODELS[selected_model]
-        return RemoteModel(endpoint)
+        model_config = config.REMOTE_MODELS[selected_model]
+        return RemoteModel(model_config)
     else:
         raise ValueError("Invalid MODE setting")
