@@ -5,6 +5,9 @@ __pycache__/
 
 # venv
 venv/
+.venv-k2so/
+
+# Environment variables
 .env/
 
 # Notes and local docs

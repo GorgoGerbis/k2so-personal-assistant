@@ -1,4 +1,4 @@
-## K2-SO Personal Droid
+## K-2SO Personal Droid
 
 A simple voice assistant for Raspberry Pi.
 
@@ -16,13 +16,38 @@ Option 2: Offload to a local server/LAN PC
 Option 3: Use cloud-hosted models (not preferred)
 - Not aligned with goal of fully local. 
 
+### Running the Project
+
+The project uses a virtual environment named `.venv-k2so`. After setup, you can activate and run the project:
+
+```powershell
+# Windows PowerShell
+.\.venv-k2so\Scripts\Activate.ps1
+
+# Windows Command Prompt
+.\.venv-k2so\Scripts\activate.bat
+
+# Linux/Mac
+source .venv-k2so/bin/activate
+```
+
+Once activated, run the project from the root directory:
+```bash
+python src/main.py
+```
+
 ### Setup
 
+1. Create virtual environment:
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python -m venv .venv-k2so
+```
+
+2. Activate the environment (see above for your shell)
+
+3. Install dependencies:
+```bash
 pip install -r requirements.txt
-python main.py
 ```
 
 ### Pi Setup
