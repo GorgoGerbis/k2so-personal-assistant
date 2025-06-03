@@ -77,13 +77,32 @@ pip install llama-cpp-python
 
 ### MVP Features to Implement
 
-* Basic wake-and-listen loop triggered by WIP (Key press, timer...?)
-* Offline speech-to-text using microphone input
-* Local text-to-speech output
-* Simple command routing with keyword-based logic (e.g., time, date, shutdown)
-* Response behavior defined in a local module
-* Fully offline operation with no cloud services or network dependency
-* Console logging of input and output for debugging
+- [ ] basic wake-and-listen loop (triggered by key press, timer, or hotword)
+- [ ] offline speech-to-text using microphone input
+- [ ] local text-to-speech output
+- [ ] simple command routing with keyword-based logic (e.g., time, date, shutdown)
+- [ ] response behavior defined in a local module
+- [ ] fully offline operation with no cloud services or network dependency
+- [ ] console logging of input and output for debugging
+
+## Planned Features (Next Branch)
+
+- [ ] face gui: animated ai face with expressions that react to conversation and speech
+- [ ] chat log: persistent chat history for each session
+    - [ ] logging of command and message history to support contextual follow-ups
+- [ ] easy setup interface: gui or executable for first-time setup (api keys, model selection, etc.)
+    - [ ] config directory for user preferences and local settings
+- [ ] voice toggle: flags to enable/disable text-to-speech and speech-to-text
+    - [ ] adjustable speaking rate and voice settings for tts
+    - [ ] optional hotword detection toggle in config
+- [ ] conversational memory: maintain context for back-and-forth, multi-turn conversations
+    - [ ] message handler pattern for extensible command-response workflows
+    - [ ] local intent parsing for natural language input matching
+- [ ] resource/cost tracking: track resource usage (ram, cpu, model size) and, for remote models, estimate api cost per prompt
+- [ ] modular command handling for extended system functions (e.g., weather, file access)
+- [ ] robust error handling and fallback behavior
+
+> development for these features will be done in a new branch: `feature/next-gen-gui-and-logging`
 
 ### Additional Features to Implement
 
