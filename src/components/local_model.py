@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Optional
 from components.chat_session import ChatSession
 
+# Import test conversations
+try:
+    from test_conversations import TestConversations
+except ImportError:
+    TestConversations = None
+
 
 class LocalModel:
     def __init__(self, model_path: str, models_dir: Optional[str] = None):
@@ -16,6 +22,10 @@ class LocalModel:
         self.full_model_path = os.path.join(self.models_dir, model_path) if models_dir else model_path
         self.model_name = Path(model_path).stem
         
+        # Check if this is a test model
+        self.is_test_model = model_path == "" or "test" in model_path.lower()
+        self.message_count = 0  # Track messages for test responses
+        
         # check if this looks like a gguf file or if we should use ollama
         self.use_ollama = not model_path.endswith('.gguf')
         self.ollama_model = None
@@ -23,11 +33,19 @@ class LocalModel:
         self.is_loaded = False
         
         # figure out what kind of model we're dealing with
-        if self.use_ollama:
+        if self.is_test_model:
+            self._setup_test_model()
+        elif self.use_ollama:
             self._setup_ollama()
         else:
             self._setup_gguf()
     
+    def _setup_test_model(self):
+        """Setup for test model mode"""
+        print("Setting up test local model...")
+        self.is_loaded = True
+        print("Test local model ready!")
+
     def _setup_ollama(self):
         # try to use ollama if the model path doesn't look like a file
         try:
@@ -130,6 +148,29 @@ class LocalModel:
         if not self.is_loaded:
             return "model not loaded"
         
+        # Handle test model
+        if self.is_test_model:
+            if TestConversations:
+                # Use contextual response if available, otherwise use sequential
+                if self.message_count == 0:
+                    response = TestConversations.get_local_response(0)
+                else:
+                    response = TestConversations.get_contextual_response(prompt)
+                
+                self.message_count += 1
+                return response
+            else:
+                # Fallback if test_conversations not available
+                responses = [
+                    "Hello! I'm K2SO in test mode. How can I help you?",
+                    "Test local model is functioning correctly.",
+                    "This is a simulated response from the local test model.",
+                    "Local test mode is active and responding normally."
+                ]
+                response = responses[self.message_count % len(responses)]
+                self.message_count += 1
+                return response
+
         try:
             formatted_prompt = self._format_prompt(prompt)
             

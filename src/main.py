@@ -3,6 +3,7 @@ import platform
 import sys
 import os
 import json 
+import time
 
 # MUST LOAD ENV VARS FIRST
 from dotenv import load_dotenv
@@ -44,9 +45,13 @@ def run_setup():
         print("Starting AI indicator...")
         ai_indicator = AIIndicator(
             fullscreen=config.GUI_FULLSCREEN,
-            animation_mode=config.GUI_ANIMATION_MODE
+            animation_mode="waveform"  # Start with waveform mode
         )
         ai_indicator.start_gui()
+        time.sleep(0.5)  # Give GUI time to initialize
+        
+        # Set initial state
+        ai_indicator.set_speaking()
         
         # connect TTS to AI indicator for visual feedback
         tts.set_ai_indicator(ai_indicator)
@@ -108,13 +113,31 @@ def select_mode():
 def select_model(mode):
     models = config.LOCAL_MODELS if mode == "local" else config.REMOTE_MODELS
     model_keys = list(models.keys())
+    
+    # Move test models to the front of the list
+    if mode == "local" and "testLocal" in model_keys:
+        model_keys.remove("testLocal")
+        model_keys.insert(0, "testLocal")
+    elif mode == "remote" and "testRemote" in model_keys:
+        model_keys.remove("testRemote")
+        model_keys.insert(0, "testRemote")
 
     print("\nAvailable models:")
     for idx, name in enumerate(model_keys, start=1):
-        print(f"{idx}. {name}")
+        desc = " (Test Model)" if "test" in name.lower() else ""
+        print(f"{idx}. {name}{desc}")
 
     while True:
-        selection = input("Select a model by number: ").strip()
+        selection = input("Select a model by number or name: ").strip()
+        
+        # Allow direct name input for test models
+        if selection.lower() in ["test", "testlocal", "testremote"]:
+            test_model = "testLocal" if mode == "local" else "testRemote"
+            if test_model in model_keys:
+                return test_model
+            continue
+            
+        # Handle numeric selection
         if selection.isdigit() and 1 <= int(selection) <= len(model_keys):
             return model_keys[int(selection) - 1]
         else:
@@ -131,8 +154,14 @@ def run_chat_session(model_backend_obj):
     # for chat interaction rather than a generic run command
     try:
         chat_session = model_backend_obj.start_chat()
+        
+        # Set initial speaking state for test models
+        if hasattr(model_backend_obj, 'is_test_model') and model_backend_obj.is_test_model:
+            if config.GUI_ENABLED and ai_indicator:
+                ai_indicator.set_speaking()
+                ai_indicator.set_audio_level(0.5)  # Set initial audio level
+        
         while True:
-            # TODO: Add voice input later
             # Text input for now
             user_input = input("\nYou: ").strip()
             if user_input.lower() in ['quit', 'exit']:
@@ -145,24 +174,31 @@ def run_chat_session(model_backend_obj):
             # Send message to model
             response = chat_session.send_message(user_input)
             
-            # back to idle before speaking (TTS will handle speaking state)
+            # Set speaking state and simulate audio level
             if config.GUI_ENABLED and ai_indicator:
-                ai_indicator.set_idle()
+                ai_indicator.set_speaking()
+                ai_indicator.set_audio_level(0.8)  # Set high audio level for speaking
 
             # Print response
             print(f"\nAssistant: {response}")
-            if config.TTS_ENABLED: # TODO: Add command line arg for user text to speech...
+            
+            if config.TTS_ENABLED:
                 tts.speak(response)
-
-            # TODO: Add voice output later
-            # TODO: Add chat history later
+            else:
+                # If TTS is disabled, we need to simulate speaking animation
+                time.sleep(len(response) * 0.05)  # Rough approximation of speaking time
+                if config.GUI_ENABLED and ai_indicator:
+                    ai_indicator.set_audio_level(0.0)  # Reset audio level to 0
+                    ai_indicator.set_idle()
     
-    # TODO: Add more specific error handling later
-    # Exception handling for chat session errors
-    # Example error is if the model is not connected
     except Exception as e:
         print(f"Error during chat session: {e}")
         sys.exit(1)
+    finally:
+        # Clean up
+        if config.GUI_ENABLED and ai_indicator:
+            ai_indicator.set_audio_level(0.0)  # Reset audio level to 0
+            ai_indicator.set_idle()
 
 
 if __name__ == "__main__":

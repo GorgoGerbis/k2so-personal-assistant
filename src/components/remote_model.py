@@ -6,17 +6,50 @@ import requests
 # TODO: May need to have a specialized ChatSession class for local & remote models
 from components.chat_session import ChatSession
 
+# Import test conversations
+try:
+    from test_conversations import TestConversations
+except ImportError:
+    TestConversations = None
+
 # TODO: Needs to be rewritten to use the new model backend interface
 class RemoteModel:
     def __init__(self, model_config):
         self.url = model_config["url"]
         self.api_key_env = model_config.get("api_key_env")
         self.model_name = self.url.split("/")[-1] # extract model name from the URL
+        
+        # Check if this is a test model
+        self.is_test_model = "test" in self.url.lower() or "test" in self.model_name.lower()
+        self.message_count = 0  # Track messages for test responses
 
         # get model name from the config key rather than parsing url
         # self.model_name = next(key for key, config in config.REMOTE_MODELS.items() if config["url"] == self.url)
 
     def generate_response(self, prompt):
+        # Handle test model
+        if self.is_test_model:
+            if TestConversations:
+                # Use contextual response if available, otherwise use sequential
+                if self.message_count == 0:
+                    response = TestConversations.get_remote_response(0)
+                else:
+                    response = TestConversations.get_contextual_response(prompt)
+                
+                self.message_count += 1
+                return response
+            else:
+                # Fallback if test_conversations not available
+                responses = [
+                    "Hello! I'm K2SO in remote test mode. Connection established.",
+                    "Remote test model is functioning correctly.",
+                    "This is a simulated response from the remote test server.",
+                    "Remote test mode is active and responding normally."
+                ]
+                response = responses[self.message_count % len(responses)]
+                self.message_count += 1
+                return response
+        
         # Try to contact the remote API sending the prompt and get a response back
         try:
             api_key = os.getenv(self.api_key_env) if self.api_key_env else None

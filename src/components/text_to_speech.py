@@ -79,6 +79,7 @@ class TextToSpeech:
         
         # notify AI indicator that speaking finished
         if self.ai_indicator:
+            self.ai_indicator.set_audio_level(0.0)  # Reset audio level to 0
             self.ai_indicator.set_idle()
         
         if not success:

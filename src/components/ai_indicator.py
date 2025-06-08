@@ -11,12 +11,14 @@ class AIState(Enum):
     SPEAKING = "speaking"
 
 class AIIndicator:
-    def __init__(self, fullscreen=False, animation_mode="ripples"):
+    def __init__(self, fullscreen=False, animation_mode="waveform", parent=None):
         self.fullscreen = fullscreen
-        self.animation_mode = animation_mode  # "ripples" or "frequency"
+        self.animation_mode = animation_mode  # "waveform", "ripples", or "frequency"
         self.current_state = AIState.IDLE
+        self.parent = parent  # Parent frame for integration
         self.window = None
         self.canvas = None
+        self.frame = None  # Container frame when used with parent
         self.center_circle = None
         self.wave_rings = []
         self.waveform_bars = []
@@ -37,18 +39,51 @@ class AIIndicator:
             AIState.SPEAKING: "#00ffff"      # cyan
         }
         
+        # waveform parameters
+        self.bar_width = 12  # base bar width
+        self.bar_spacing = 6  # base spacing
+        self.bar_base_height = 0  # minimal baseline height (changed to 0)
+        self.max_bar_height = 250  # increased maximum height
+        self.waveform_color = "#00ffff"  # cyan
+        self.waveform_peak_color = "#ff3366"  # pink-red for peaks
+        self.height_smoothing = 0.25  # increased smoothing for more fluid motion
+        
+        # These will be calculated dynamically based on screen width
+        self.num_bars = 32  # initial value, will be updated
+        self.bar_heights = []  # will be initialized in _update_bar_count
+        self.target_heights = []  # will be initialized in _update_bar_count
+        
         # animation parameters
         self.base_radius = 60 if not fullscreen else 120
         self.wave_count = 5
-        self.wave_speed = 0.15
+        self.wave_speed = 0.08  # slightly increased for more movement
         self.wave_amplitude = 20 if not fullscreen else 40
+        self.animation_fps = 30  # frame rate for smooth animation
+        
+        # waveform parameters
+        self.waveform_points = 200  # number of points across the line
+        self.waveform_amplitude = 40  # maximum height from center line
+        self.waveform_thickness = 2
+        self.waveform_speed = 0.05
         
     def start_gui(self):
         """start the GUI in a separate thread"""
-        if self.window is None:
+        if self.parent is None and self.window is None:
             gui_thread = threading.Thread(target=self._create_window, daemon=True)
             gui_thread.start()
             time.sleep(0.1)  # give window time to initialize
+        elif self.parent is not None and self.frame is None:
+            self._create_embedded_frame()
+            
+        # Start animation if not already running
+        if not self.animation_running:
+            self._start_animation()
+    
+    def get_frame(self):
+        """Get the frame for embedding in parent GUI"""
+        if self.parent is not None and self.frame is None:
+            self._create_embedded_frame()
+        return self.frame
     
     def _create_window(self):
         """create the tkinter window and canvas"""
@@ -108,8 +143,57 @@ class AIIndicator:
         # start tkinter main loop
         self.window.mainloop()
     
+    def _create_embedded_frame(self):
+        """Create embedded frame for use in parent GUI"""
+        if self.parent is None:
+            return
+            
+        self.frame = tk.Frame(self.parent, bg='black')
+        
+        # Create canvas that fills the frame
+        self.canvas = tk.Canvas(
+            self.frame,
+            bg='black',
+            highlightthickness=0
+        )
+        self.canvas.pack(fill=tk.BOTH, expand=True)
+        
+        # Bind to resize events
+        self.canvas.bind('<Configure>', self._on_canvas_resize)
+        
+        # Draw initial elements
+        self._draw_elements()
+        
+        # Set initial state to speaking to show animation
+        self.set_speaking()
+    
+    def _on_canvas_resize(self, event):
+        """Handle canvas resize events"""
+        # Update dimensions
+        self.canvas_width = event.width
+        self.canvas_height = event.height
+        self.center_x = self.canvas_width // 2
+        self.center_y = self.canvas_height // 2
+        
+        # Scale animation parameters based on new size
+        size_factor = min(self.canvas_width, self.canvas_height) / 400
+        self.base_radius = int(60 * size_factor)
+        self.wave_amplitude = int(20 * size_factor)
+        
+        # Redraw elements with new dimensions
+        self._draw_elements()
+    
     def _draw_elements(self):
         """draw the main interface elements"""
+        if not self.canvas:
+            return
+            
+        # Get current dimensions from canvas
+        self.canvas_width = self.canvas.winfo_width()
+        self.canvas_height = self.canvas.winfo_height()
+        self.center_x = self.canvas_width // 2
+        self.center_y = self.canvas_height // 2
+        
         # clear previous elements
         if self.center_circle:
             self.canvas.delete(self.center_circle)
@@ -144,6 +228,8 @@ class AIIndicator:
                     # choose animation based on mode
                     if self.animation_mode == "ripples":
                         self._animate_water_ripples(frame, wave_offsets)
+                    elif self.animation_mode == "waveform":
+                        self._animate_simple_waveform(frame)
                     else:  # frequency
                         self._animate_audio_waveform(frame)
                         
@@ -156,7 +242,7 @@ class AIIndicator:
                     self._animate_idle()
                 
                 frame += 1
-                time.sleep(0.033)  # 30 fps for smoother animation
+                time.sleep(1.0 / self.animation_fps)  # use configured frame rate
                 
             except Exception as e:
                 print(f"Animation error: {e}")
@@ -268,7 +354,119 @@ class AIIndicator:
             center_color = self._brighten_color(base_color, center_intensity)
             self.canvas.itemconfig(self.center_circle, fill=center_color, outline=center_color)
     
-
+    def _animate_simple_waveform(self, frame):
+        """Create equalizer-style waveform animation with growing/shrinking bars"""
+        if not self.canvas:
+            return
+            
+        # Update bar count based on current window size
+        self._update_bar_count()
+            
+        # Clear previous waveform
+        self._clear_all_animations()
+        
+        # Get current dimensions
+        width = self.canvas.winfo_width()
+        height = self.canvas.winfo_height()
+        center_y = height // 2
+        
+        # Calculate bar layout
+        total_width = (self.bar_width + self.bar_spacing) * self.num_bars - self.bar_spacing
+        start_x = (width - total_width) // 2
+        
+        # Generate new target heights for each bar
+        for i in range(self.num_bars):
+            if self.current_state == AIState.SPEAKING and self.audio_level > 0.05:
+                # Create wave pattern across bars with smoother transitions
+                t = frame * self.wave_speed  # Wave movement speed
+                
+                # Multiple wave frequencies for natural look
+                wave1 = math.sin(t + i * 0.2) * 0.6  # Primary wave
+                wave2 = math.sin(t * 0.7 + i * 0.15) * 0.4  # Secondary wave
+                wave3 = math.sin(t * 0.3 + i * 0.25) * 0.3  # Tertiary wave
+                
+                # Combine waves with smoother blending
+                combined_wave = (wave1 + wave2 + wave3) / 1.3  # Normalized blend
+                
+                # Make it always positive and scale by audio level with more dramatic response
+                amplitude = (abs(combined_wave) * 0.8 + 0.2) * (self.audio_level ** 1.5)  # Exponential response
+                
+                # Add random variation for more natural look
+                variation = random.uniform(0.85, 1.15)
+                
+                # Convert to actual bar height with more dramatic scaling
+                target_height = amplitude * self.max_bar_height * variation
+                self.target_heights[i] = max(0, min(self.max_bar_height, target_height))
+            else:
+                # Return to zero when not speaking or audio level is too low
+                self.target_heights[i] = 0
+        
+        # Smoothly animate current heights toward targets
+        for i in range(self.num_bars):
+            diff = self.target_heights[i] - self.bar_heights[i]
+            
+            # When not speaking or audio level is zero/very low, immediately snap to flat line
+            if self.current_state != AIState.SPEAKING or self.audio_level <= 0.01:
+                # Immediate snap to zero - no animation delay
+                self.bar_heights[i] = 0
+            elif diff < 0:
+                # Normal faster decay when going down
+                self.bar_heights[i] += diff * 0.3  # Faster drop
+            else:
+                # Normal rise when going up
+                self.bar_heights[i] += diff * self.height_smoothing  # Normal rise
+            
+            # Clamp to reasonable bounds
+            self.bar_heights[i] = max(0, min(self.max_bar_height, self.bar_heights[i]))
+        
+        # Draw the actual bars
+        for i in range(self.num_bars):
+            x = start_x + i * (self.bar_width + self.bar_spacing)
+            current_height = self.bar_heights[i]
+            
+            # Only draw bars if they have height
+            if current_height > 0:
+                # Color based on height
+                height_ratio = current_height / self.max_bar_height
+                if height_ratio > 0.8:
+                    color = self.waveform_peak_color  # Pink for peaks
+                elif height_ratio > 0.6:
+                    color = "#ff6633"  # Orange-red for high
+                elif height_ratio > 0.4:
+                    color = "#ffaa33"  # Orange for medium-high
+                elif height_ratio > 0.2:
+                    color = "#66ccff"  # Light blue for medium
+                else:
+                    color = self.waveform_color  # Cyan for low
+                
+                # Upper bar (grows upward from center)
+                upper_bar = self.canvas.create_rectangle(
+                    x, center_y - current_height,
+                    x + self.bar_width, center_y,
+                    fill=color,
+                    outline=""
+                )
+                self.waveform_bars.append(upper_bar)
+                
+                # Lower bar (grows downward from center) 
+                lower_bar = self.canvas.create_rectangle(
+                    x, center_y,
+                    x + self.bar_width, center_y + current_height,
+                    fill=color,
+                    outline=""
+                )
+                self.waveform_bars.append(lower_bar)
+        
+        # Draw center line only when there's activity
+        if any(h > 0 for h in self.bar_heights):
+            baseline = self.canvas.create_rectangle(
+                start_x - 20, center_y - 1,
+                start_x + total_width + 20, center_y + 1,
+                fill=self.waveform_color,
+                outline=""
+            )
+            self.waveform_bars.append(baseline)
+    
     def _animate_processing_pulse(self, frame):
         """gentle pulse animation for processing"""
         if not self.canvas or not self.center_circle:
@@ -343,6 +541,7 @@ class AIIndicator:
     
     def set_idle(self):
         """convenience method for idle state"""
+        self.set_audio_level(0.0)  # Always reset audio level when going idle
         self.set_state(AIState.IDLE)
     
     def set_processing(self):
@@ -355,16 +554,23 @@ class AIIndicator:
     
     def set_audio_level(self, level):
         """update audio level for reactive animation (0.0 to 1.0)"""
+        old_level = self.audio_level
         self.audio_level = max(0.0, min(1.0, level))
+        if abs(old_level - self.audio_level) > 0.1:  # Only print significant changes
+            print(f"Audio level: {old_level:.2f} -> {self.audio_level:.2f}")
+        
+        # Immediately clear waveform when audio level drops to zero
+        if self.audio_level <= 0.01 and old_level > 0.01:
+            self._immediate_clear_waveform()
     
     def _toggle_animation_mode(self, event=None):
-        """toggle between ripples and frequency modes"""
-        if self.animation_mode == "ripples":
-            self.animation_mode = "frequency"
-            print("Animation mode: Frequency Bars")
-        else:
+        """toggle between waveform and ripples modes"""
+        if self.animation_mode == "waveform":
             self.animation_mode = "ripples"
             print("Animation mode: Water Ripples")
+        else:
+            self.animation_mode = "waveform"
+            print("Animation mode: Simple Waveform")
         
         # clear ALL animations and redraw clean
         self._clear_all_animations()
@@ -388,6 +594,28 @@ class AIIndicator:
                 pass
         self.waveform_bars.clear()
     
+    def _immediate_clear_waveform(self):
+        """immediately clear waveform and reset bar heights"""
+        if not self.canvas:
+            return
+        
+        try:
+            # Clear all visual elements immediately
+            self._clear_all_animations()
+            
+            # Reset all bar heights to zero
+            if hasattr(self, 'bar_heights'):
+                for i in range(len(self.bar_heights)):
+                    self.bar_heights[i] = 0
+            if hasattr(self, 'target_heights'):
+                for i in range(len(self.target_heights)):
+                    self.target_heights[i] = 0
+                    
+            # Force canvas update to ensure immediate visual change
+            self.canvas.update_idletasks()
+        except Exception as e:
+            print(f"Error clearing waveform: {e}")
+    
     def _on_window_resize(self, event):
         """handle window resize events to keep animation centered"""
         # only respond to canvas resize events, not other widgets
@@ -398,6 +626,9 @@ class AIIndicator:
             self.center_x = self.canvas_width // 2
             self.center_y = self.canvas_height // 2
             
+            # Update bar count for new size
+            self._update_bar_count()
+            
             # recalculate animation parameters based on new size
             size_factor = min(self.canvas_width, self.canvas_height) / 400
             self.base_radius = int(60 * size_factor)
@@ -405,6 +636,23 @@ class AIIndicator:
             
             # redraw elements with new center position
             self._draw_elements()
+    
+    def _update_bar_count(self):
+        """Update number of bars based on screen width"""
+        if not self.canvas:
+            return
+            
+        width = self.canvas.winfo_width()
+        
+        # Calculate how many bars we can fit
+        # Leave a small margin on each side (40 pixels)
+        usable_width = width - 80
+        self.num_bars = max(32, usable_width // (self.bar_width + self.bar_spacing))
+        
+        # Update arrays if size changed
+        if len(self.bar_heights) != self.num_bars:
+            self.bar_heights = [self.bar_base_height] * self.num_bars
+            self.target_heights = [self.bar_base_height] * self.num_bars
     
     def close(self):
         """close the GUI"""
