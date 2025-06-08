@@ -13,9 +13,13 @@ load_dotenv()  # required for reading API keys and config from .env
 import config
 from router import get_backend
 from components.text_to_speech import tts
+from components.ai_indicator import AIIndicator
 
 # User config file
 CONFIG_PATH = os.path.join(os.getcwd(), "user_config.json") # remembers users choice for future runs so setup is not repeated every time
+
+# Global AI indicator instance
+ai_indicator = None
 
 # FIRST
 # setup whatever is needed to run the program...
@@ -33,6 +37,19 @@ def run_setup():
     config.MODELS_DIR = models_dir
 
     print("Setup complete\n")
+    
+    # create and start AI indicator GUI if enabled
+    global ai_indicator
+    if config.GUI_ENABLED:
+        print("Starting AI indicator...")
+        ai_indicator = AIIndicator(
+            fullscreen=config.GUI_FULLSCREEN,
+            animation_mode=config.GUI_ANIMATION_MODE
+        )
+        ai_indicator.start_gui()
+        
+        # connect TTS to AI indicator for visual feedback
+        tts.set_ai_indicator(ai_indicator)
 
 # FIRST - HELPER A
 def load_models_dir():
@@ -121,9 +138,16 @@ def run_chat_session(model_backend_obj):
             if user_input.lower() in ['quit', 'exit']:
                 break
             
+            # show processing state
+            if config.GUI_ENABLED and ai_indicator:
+                ai_indicator.set_processing()
+            
             # Send message to model
             response = chat_session.send_message(user_input)
             
+            # back to idle before speaking (TTS will handle speaking state)
+            if config.GUI_ENABLED and ai_indicator:
+                ai_indicator.set_idle()
 
             # Print response
             print(f"\nAssistant: {response}")
