@@ -9,6 +9,9 @@ K-2SO Personal (Droid) Assistant runs quantized Llama models locally, routes com
 ![K-2SO System Diagram](assets/k2so_prototype1_backside_diagram.png)
 *System architecture diagram for PROTOTYPE K-2SO interface*
 
+![K-2SO Animation Demo](assets/k2so_speaking_animation_prototype_waves_freqBars.gif)
+*Visual AI indicator with dual animation modes - ripples and frequency bars*
+
 > "I'm with you. The captain said I had to." — K-2SO
 
 ### Model Flexibility
